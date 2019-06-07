@@ -1,0 +1,48 @@
+version: '3'
+services:
+  gocd-server:
+    image: gocd/gocd-server:v19.4.0
+    ports:
+      - "8153"
+      - "8154"
+      - "5005:5005"
+    volumes:
+      - "./gocd-server:/godata"
+    # environment:
+    #   - GO_SERVER_SYSTEM_PROPERTIES=-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005
+  agent-hack:
+    image: gocd/gocd-agent-alpine-3.9:v19.4.0
+    environment:
+      - GO_SERVER_URL=https://gocd-server:8154/go
+      - AGENT_AUTO_REGISTER_KEY=88d65912-0eb5-43cc-9727-5b2a9f05d67d
+    depends_on:
+      - gocd-server
+    volumes:
+      - "./agent-hack:/godata"
+  agent-1:
+    image: gocd/gocd-agent-alpine-3.9:v19.4.0
+    environment:
+      - GO_SERVER_URL=https://reverse-proxy:443/go
+      - AGENT_AUTO_REGISTER_KEY=88d65912-0eb5-43cc-9727-5b2a9f05d67d
+    depends_on:
+      - reverse-proxy
+  agent-2:
+    image: gocd/gocd-agent-alpine-3.9:v19.4.0
+    depends_on:
+      - reverse-proxy
+    environment:
+      - GO_SERVER_URL=https://reverse-proxy:443/go
+      - AGENT_AUTO_REGISTER_KEY=88d65912-0eb5-43cc-9727-5b2a9f05d67d
+  reverse-proxy:
+    build:
+      context: docker/nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "./nginx/conf:/etc/nginx/conf.d"
+      - "./gocd-server:/gocd-server-data"
+      - "./agent-hack:/gocd-agent-data"
+    depends_on:
+      - gocd-server
+      - agent-hack
